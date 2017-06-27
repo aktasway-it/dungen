@@ -41,6 +41,9 @@ public class GridManager : SingletonBehavior<GridManager>
 	[SerializeField]
 	private MinMax _roomHeight;
 
+    [SerializeField]
+    private int _minRoomsDistance;
+
 	[SerializeField]
 	private int _maxAttempts;
 
@@ -72,6 +75,7 @@ public class GridManager : SingletonBehavior<GridManager>
 		RandomUtility.Create(_seed);
         GenerateGrid();
         GenerateRooms();
+        Job.Create(GenerateCorridors());
 	}
 
 	private void GenerateGrid()
@@ -158,14 +162,35 @@ public class GridManager : SingletonBehavior<GridManager>
         {
             GridCell cell = GetRandomCell();
             Vector2Int roomSize = new Vector2Int(RandomUtility.Range(_roomWidth.Min, _roomWidth.Max + 1), RandomUtility.Range(_roomHeight.Min, _roomHeight.Max + 1));
-            if(BoxCheck(cell.Coords, roomSize.X, roomSize.Y))
+
+            Vector2Int roomDistanceVector = new Vector2Int(_minRoomsDistance, _minRoomsDistance);
+
+            if(BoxCheck(cell.Coords - roomDistanceVector, roomSize.X + _minRoomsDistance * 2, roomSize.Y + _minRoomsDistance * 2))
             {
                 RoomBlock room = new RoomBlock(roomId);
 
-                for (int x = cell.Coords.X; x < cell.Coords.X + roomSize.X; ++x)
+                for (int x = cell.Coords.X; x <= cell.Coords.X + roomSize.X; ++x)
 				{
-                    for (int y = cell.Coords.Y; y < cell.Coords.Y + roomSize.Y; ++y)
+                    for (int y = cell.Coords.Y; y <= cell.Coords.Y + roomSize.Y; ++y)
 					{
+                        EDirection walls = EDirection.None;
+                        bool isLeftEdge = x - cell.Coords.X == 0;
+                        bool isRightEdge = x - (cell.Coords.X + roomSize.X) == 0;
+
+						bool isTopEdge = y - (cell.Coords.Y + roomSize.Y) == 0;
+                        bool isBottomEdge = y - cell.Coords.Y == 0;
+
+                        if (isLeftEdge)
+                            walls |= EDirection.West;
+                        else if (isRightEdge)
+                            walls |= EDirection.East;
+
+                        if (isTopEdge)
+                            walls |= EDirection.North;
+                        else if (isBottomEdge)
+                            walls |= EDirection.South;
+
+                        _grid[x, y].SetWalls(walls);
                         _grid[x, y].Occupant = room;
                         _grid[x, y].Renderer.SetColor(Color.cyan);
 					}
@@ -179,7 +204,81 @@ public class GridManager : SingletonBehavior<GridManager>
         }
     }
 
-    public bool BoxCheck(Vector2Int topLeftCoords, int width, int height)
+    public IEnumerator GenerateCorridors()
+    {
+        GridCell currentCell = null;
+        EDirection[,] visited = new EDirection[_width, _height];
+
+		// select a random starting cell
+		while (currentCell == null)
+        {
+            var randomCell = GetRandomCell();
+            if (randomCell.Occupant == null)
+                currentCell = randomCell;
+        }
+
+        // mark walls and rooms as already visited
+        for (int x = 0; x < _width; ++x)
+        {
+            for (int y = 0; y < _width; ++y)
+            {
+                visited[x, y] = _grid[x, y].Occupant != null ? _grid[x, y].Walls : EDirection.All;
+            }
+        }
+
+        // mark starting cell as visited
+        currentCell.Occupant = new CorridorBlock(0);
+        currentCell.Renderer.SetColor(Color.magenta);
+
+		Stack<GridCell> cellStack = new Stack<GridCell>();
+        cellStack.Push(currentCell);
+
+        Color debugColor = new Color(RandomUtility.Range(0.0f, 1.0f), RandomUtility.Range(0.0f, 1.0f), RandomUtility.Range(0.0f, 1.0f));
+
+        int corridorID = 1;
+
+		List<Vector2Int> neighbors = new List<Vector2Int>();
+		
+        while(cellStack.Count > 0)
+        {
+            neighbors.Clear();
+
+            for (int x = currentCell.Coords.X - 1; x <= currentCell.Coords.X + 1; ++x)
+            {
+                for (int y = currentCell.Coords.Y - 1; y <= currentCell.Coords.Y + 1; ++y)
+                {
+                    if (((x - currentCell.Coords.X) != 0 && (y - currentCell.Coords.Y) != 0) || (x - currentCell.Coords.X) == 0 && (y - currentCell.Coords.Y) == 0)
+                        continue;
+                    
+                    if (IsValidCoordinate(x, y) && visited[x, y] == EDirection.All)
+                        neighbors.Add(new Vector2Int(x, y));
+                }
+            }
+
+            if(neighbors.Count == 0)
+            {
+                currentCell = cellStack.Pop();
+            }
+            else
+            {
+                var randomNeighbourCoords = neighbors.GetRandomElement();
+                Vector2Int dirVector = currentCell.Coords - randomNeighbourCoords;
+                currentCell.BreakWall(DirectionFromVector(dirVector * -1));
+                currentCell = _grid[randomNeighbourCoords.X, randomNeighbourCoords.Y];
+                currentCell.BreakWall(DirectionFromVector(dirVector));
+                currentCell.Occupant = new CorridorBlock(corridorID);
+                currentCell.Renderer.SetColor(debugColor);
+
+                visited[randomNeighbourCoords.X, randomNeighbourCoords.Y] = currentCell.Walls;
+				cellStack.Push(currentCell);
+                corridorID++;
+
+				yield return null;
+			}
+        }
+	}
+
+    private bool BoxCheck(Vector2Int topLeftCoords, int width, int height)
     {
         for (int x = topLeftCoords.X; x < topLeftCoords.X + width; ++x)
         {
@@ -193,9 +292,36 @@ public class GridManager : SingletonBehavior<GridManager>
         return true;
     }
 
+    private EDirection DirectionFromVector(Vector2Int vector)
+    {
+        if (vector.X != 0)
+            return vector.X > 0 ? EDirection.East : EDirection.West;
+        else if (vector.Y != 0)
+            return vector.Y > 0 ? EDirection.North : EDirection.South;
+        else
+            return EDirection.All;
+	}
+
     public GridCell GetRandomCell()
     {
         return _grid[RandomUtility.Range(0, _width), RandomUtility.Range(0, _height)];
+    }
+
+    public GridCell[,] GetAdjacentCells(Vector2Int coords)
+    {
+        GridCell[,] neighbours = new GridCell[3, 3];
+        for (int x = coords.X - 1; x <= coords.X + 1; ++x)
+        {
+            for (int y = coords.Y - 1; y <= coords.Y + 1; ++y)
+            {
+                if (!IsValidCoordinate(x, y) || x == coords.X && y == coords.Y)
+                    continue;
+
+                neighbours[x - (coords.X - 1), y - (coords.Y - 1)] = _grid[x, y];
+            }
+        }
+
+        return neighbours;
     }
 
 	public bool IsValidCoordinate(Vector2Int coords)
