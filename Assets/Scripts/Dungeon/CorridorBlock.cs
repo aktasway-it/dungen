@@ -13,11 +13,5 @@ public class CorridorBlock : DungeonBlock
 
     public Dictionary<int, CorridorBlock> _connections;
 
-    public CorridorBlock(int id) : base(id, EDungeonBlockType.Corridor) {}
-
-    public void Connect(CorridorBlock corridorBlock)
-    {
-        if (!_connections.ContainsKey(corridorBlock.ID))
-            _connections.Add(corridorBlock.ID, corridorBlock);
-    }
+    public CorridorBlock() : base(EDungeonBlockType.Corridor) {}
 }

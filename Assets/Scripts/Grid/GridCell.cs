@@ -3,12 +3,15 @@ using System.Collections.Generic;
 
 public class GridCell
 {
-    public GridCellRenderer Renderer { get; set; }
+	public int ID { get; private set; }
+
+	public GridCellRenderer Renderer { get; set; }
     public DungeonBlock Occupant { get; set; }
     public Vector2Int Coords { get; protected set; }
 
-    public GridCell(int x, int y)
+    public GridCell(int id, int x, int y)
     {
+        ID = id;
         Coords = new Vector2Int(x, y);
     }
 

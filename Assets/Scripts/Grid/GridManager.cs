@@ -36,13 +36,13 @@ public class GridManager : SingletonBehavior<GridManager>
 	private float _spacing = 0.1f;
 
     [SerializeField]
-    private MinMax _roomWidth;
-
-	[SerializeField]
-	private MinMax _roomHeight;
+    private MinMax _roomSize;
 
     [SerializeField, Range(0f, 1f)]
     private float _sparseness;
+
+    [SerializeField, Range(1, 10)]
+    private int _maxDoorsPerRoom = 2;
 
 	[SerializeField]
 	private int _maxAttempts;
@@ -59,15 +59,16 @@ public class GridManager : SingletonBehavior<GridManager>
     [SerializeField]
     private GridCellRenderer _cellVisualPrefab = null;
 
+    private int _freeCells;
     private GridCell[,] _grid = null;
-    private Dictionary<int, RoomBlock> _rooms;
+    private Dictionary<int, Room> _rooms;
 
     private void Start()
     {
-        Create();
+        Job.Create(Create());
     }
 
-    public void Create () 
+    public IEnumerator Create () 
 	{
 		if(_useRandomSeed)
 			_seed = (int) (DateTime.Now.Ticks % 100000);
@@ -75,12 +76,14 @@ public class GridManager : SingletonBehavior<GridManager>
 		RandomUtility.Create(_seed);
         GenerateGrid();
         GenerateRooms();
-        Job.Create(GenerateCorridors());
+        yield return Job.Create(GenerateCorridors(), false).StartAsRoutine();
+		ConnectRooms();
 	}
 
 	private void GenerateGrid()
 	{
         _grid = new GridCell[_width, _height];
+        _freeCells = _width * _height;
 
 		Vector3 initialPos = new Vector3(-_width * _tileSize * 0.5f, -_height * _tileSize * 0.5f, 0);
 		initialPos.x -= _spacing * (_width - 1) * 0.5f;
@@ -90,7 +93,8 @@ public class GridManager : SingletonBehavior<GridManager>
         {
             for (int y = 0; y < _width; ++y)
             {
-				GridCell cell = new GridCell(x, y);
+                int cellId = IdFromPosition(x, y);
+                GridCell cell = new GridCell(cellId, x, y);
 				_grid[x, y] = cell;
 
                 if(_useDebugVisualization)
@@ -98,7 +102,7 @@ public class GridManager : SingletonBehavior<GridManager>
 					Vector3 spawnPos = new Vector3(x * (_tileSize + _spacing) + _tileSize * 0.5f, y * (_tileSize + _spacing) + _tileSize * 0.5f, 0);
                     GridCellRenderer cellRenderer = Instantiate<GridCellRenderer>(_cellVisualPrefab, initialPos + spawnPos, Quaternion.identity);
 					cellRenderer.transform.localScale = Vector3.one * _tileSize;
-					cellRenderer.name = string.Format("Tile_{0}x{1}", x, y);
+                    cellRenderer.name = string.Format("Tile_{0}x{1} ({2})", x, y, cellId);
 					cellRenderer.transform.parent = transform;
 
                     cell.Renderer = cellRenderer;
@@ -107,25 +111,25 @@ public class GridManager : SingletonBehavior<GridManager>
         }
 	}
 
-    public void GenerateRooms()
+    private void GenerateRooms()
     {
-        _rooms = new Dictionary<int, RoomBlock>();
+        _rooms = new Dictionary<int, Room>();
 
         int attempts = 0;
         int roomId = 0;
-        int minRoomDistance = ((_roomWidth.Min + _roomWidth.Max) / 2 + (_roomHeight.Min + _roomHeight.Max) / 2) / 2;
+        int minRoomDistance = (_roomSize.Min + _roomSize.Max) / 2;
         minRoomDistance = Mathf.Max(1, Mathf.RoundToInt(minRoomDistance * _sparseness));
 
 		while(attempts < _maxAttempts)
         {
             GridCell cell = GetRandomCell();
-            Vector2Int roomSize = new Vector2Int(RandomUtility.Range(_roomWidth.Min, _roomWidth.Max + 1), RandomUtility.Range(_roomHeight.Min, _roomHeight.Max + 1));
+            Vector2Int roomSize = new Vector2Int(RandomUtility.Range(_roomSize.Min, _roomSize.Max + 1), RandomUtility.Range(_roomSize.Min, _roomSize.Max + 1));
 
             Vector2Int roomDistanceVector = new Vector2Int(minRoomDistance, minRoomDistance);
 
             if(BoxCheck(cell.Coords - roomDistanceVector, roomSize.X + minRoomDistance * 2, roomSize.Y + minRoomDistance * 2))
             {
-                RoomBlock room = new RoomBlock(roomId);
+                Room room = new Room(roomId, cell.Coords, roomSize);
 
                 for (int x = cell.Coords.X; x <= cell.Coords.X + roomSize.X; ++x)
 				{
@@ -133,8 +137,10 @@ public class GridManager : SingletonBehavior<GridManager>
 					{
                         if (!IsValidCoordinate(x, y))
                             continue;
-                        
-                        EDirection walls = EDirection.None;
+
+                        RoomBlock roomBlock = new RoomBlock();
+
+						EDirection walls = EDirection.None;
                         bool isLeftEdge = x - cell.Coords.X == 0;
                         bool isRightEdge = x - (cell.Coords.X + roomSize.X) == 0;
 
@@ -151,9 +157,14 @@ public class GridManager : SingletonBehavior<GridManager>
                         else if (isBottomEdge)
                             walls |= EDirection.South;
 
-                        _grid[x, y].Occupant = room;
+                        _grid[x, y].Occupant = roomBlock;
 						_grid[x, y].SetWalls(walls);
-                        _grid[x, y].Renderer.SetColor(Color.cyan);
+
+                        if(_useDebugVisualization)
+                            _grid[x, y].Renderer.SetColor(Color.cyan);
+
+                        room.AddBlock(IdFromPosition(x, y), roomBlock);
+                        _freeCells--;
 					}
 				}
 
@@ -165,12 +176,12 @@ public class GridManager : SingletonBehavior<GridManager>
         }
     }
 
-    public IEnumerator GenerateCorridors()
+    private IEnumerator GenerateCorridors()
     {
         EDirection[,] visited = new EDirection[_width, _height];
 
 		// select a random starting cell
-        GridCell currentCell = GetRandomCell(true);
+        GridCell currentCell = GetFirstFreeCell();
 
         // mark walls and rooms as already visited
         for (int x = 0; x < _width; ++x)
@@ -182,19 +193,19 @@ public class GridManager : SingletonBehavior<GridManager>
         }
 
         // mark starting cell as visited
-        currentCell.Occupant = new CorridorBlock(0);
-        currentCell.Renderer.SetColor(Color.magenta);
+        currentCell.Occupant = new CorridorBlock();
+
+        if(_useDebugVisualization)
+            currentCell.Renderer.SetColor(Color.magenta);
 
 		Stack<GridCell> cellStack = new Stack<GridCell>();
         cellStack.Push(currentCell);
 
         Color debugColor = Color.grey;
 
-        int corridorID = 1;
-
 		List<Vector2Int> neighbors = new List<Vector2Int>();
-		
-        while(cellStack.Count > 0)
+
+        while (_freeCells > 0)
         {
             neighbors.Clear();
 
@@ -212,7 +223,13 @@ public class GridManager : SingletonBehavior<GridManager>
 
             if(neighbors.Count == 0)
             {
-                currentCell = cellStack.Pop();
+                if(cellStack.Count > 0)
+                    currentCell = cellStack.Pop();
+                else
+                {
+                    currentCell = GetFirstFreeCell();
+                    currentCell.Occupant = new CorridorBlock();
+                }
             }
             else
             {
@@ -223,20 +240,60 @@ public class GridManager : SingletonBehavior<GridManager>
 
                 // change the current cell to be the new random picked one and break the wall in direction from the previous one
                 currentCell = _grid[randomNeighbourCoords.X, randomNeighbourCoords.Y];
-                currentCell.Occupant = new CorridorBlock(corridorID);
+                currentCell.Occupant = new CorridorBlock();
 				currentCell.BreakWall(DirectionFromVector(dirVector));
 
                 visited[randomNeighbourCoords.X, randomNeighbourCoords.Y] = currentCell.Occupant.Walls;
 				cellStack.Push(currentCell);
-                corridorID++;
 
 				if (_useDebugVisualization)
 					currentCell.Renderer.SetColor(debugColor);
 
+                _freeCells--;
 				yield return null;
 			}
         }
 	}
+
+    private void ConnectRooms()
+    {
+        foreach(KeyValuePair<int, Room> room in _rooms)
+        {
+            var boundary = room.Value.GetBounds();
+            boundary.Shuffle();
+
+            int doorsCreated = 0;
+            int doorsToCreate = RandomUtility.Range(1, _maxDoorsPerRoom + 1) - room.Value.DoorCount;
+
+            foreach(KeyValuePair<int, RoomBlock> roomBlockPair in boundary)
+            {
+                Vector2Int roomCoords = PositionFromId(roomBlockPair.Key);
+
+                if ((roomCoords.X % 2 == 0 && roomCoords.Y % 2 == 0) || (roomCoords.X % 2 != 0 && roomCoords.Y % 2 != 0))
+                    continue;
+                
+                Vector2Int dirVector = VectorFromDirection(roomBlockPair.Value.Walls);
+                EDirection wallDirection = DirectionFromVector(dirVector);
+
+                if (dirVector.IsZero())
+                    continue;
+                
+                Vector2Int adjacentTilePosition = roomCoords + dirVector;
+
+                if (!IsValidCoordinate(adjacentTilePosition))
+                    continue;
+
+                _grid[adjacentTilePosition.X, adjacentTilePosition.Y].BreakWall(GetOppositeVector(wallDirection));
+                _grid[roomCoords.X, roomCoords.Y].BreakWall(wallDirection);
+
+                room.Value.AddDoor();
+                doorsCreated++;
+
+                if (doorsCreated == doorsToCreate)
+                    break;
+            }
+        }
+    }
 
     private bool BoxCheck(Vector2Int topLeftCoords, int width, int height)
     {
@@ -250,6 +307,46 @@ public class GridManager : SingletonBehavior<GridManager>
         }
 
         return true;
+    }
+
+    private EDirection GetOppositeVector(EDirection direction)
+    {
+		if ((direction & EDirection.East) == EDirection.East)
+			return EDirection.West;
+
+		if ((direction & EDirection.West) == EDirection.West)
+			return EDirection.East;
+        
+        if ((direction & EDirection.North) == EDirection.North)
+            return EDirection.South;
+
+        if ((direction & EDirection.South) == EDirection.South)
+            return EDirection.North;
+
+        if (direction == EDirection.None)
+            return EDirection.All;
+
+        if (direction == EDirection.All)
+            return EDirection.None;
+
+        return EDirection.None;
+    }
+
+    private Vector2Int VectorFromDirection(EDirection direction)
+    {
+		if ((direction & EDirection.East) == EDirection.East)
+			return new Vector2Int(1, 0);
+
+		if ((direction & EDirection.West) == EDirection.West)
+			return new Vector2Int(-1, 0);
+
+		if ((direction & EDirection.North) == EDirection.North)
+			return new Vector2Int(0, 1);
+
+		if ((direction & EDirection.South) == EDirection.South)
+			return new Vector2Int(0, -1);
+
+		return new Vector2Int(0, 0);
     }
 
     private EDirection DirectionFromVector(Vector2Int vector)
@@ -283,6 +380,17 @@ public class GridManager : SingletonBehavior<GridManager>
         return cell;
     }
 
+    public GridCell GetFirstFreeCell()
+    {
+        foreach(GridCell cell in _grid)
+        {
+            if (cell.Occupant == null)
+                return cell;
+        }
+
+        return null;
+    }
+
 	public bool IsValidCoordinate(Vector2Int coords)
 	{
 		return IsValidCoordinate(coords.X, coords.Y);
@@ -293,48 +401,18 @@ public class GridManager : SingletonBehavior<GridManager>
 		return x >= 0 && x < _width && y >= 0 && y < _height;
 	}
 
-    /*public bool IsMapFullyConnected(bool[,] obstacleMap, int currentObstacleCount)
+    public Vector2Int PositionFromId(int id)
     {
-        int obstacleMapWidth = obstacleMap.GetLength(0);
-        int obstacleMapHeight = obstacleMap.GetLength(1);
+        return new Vector2Int(id % _width, id / _width);
+    }
 
-        bool[,] visitedMapNodes = new bool[obstacleMapWidth, obstacleMapHeight];
+    public int IdFromPosition(Vector2Int pos)
+    {
+        return IdFromPosition(pos.X, pos.Y);
+    }
 
-        Queue<Vector2Int> visitedNodeQueue = new Queue<Vector2Int>();
-        visitedNodeQueue.Enqueue (_startTile.Coords);
-
-        visitedMapNodes [_startTile.Coords.x, _startTile.Coords.y] = true;
-
-        int accessibleTileCount = 1;
-
-        while (visitedNodeQueue.Count > 0) 
-        {
-            Vector2Int currentNode = visitedNodeQueue.Dequeue();
-
-            for (int x = -1; x <= 1; x ++) 
-            {
-                for (int y = -1; y <= 1; y ++) 
-                {
-                    int neighbourX = currentNode.x + x;
-                    int neighbourY = currentNode.y + y;
-
-                    if (x == 0 || y == 0) 
-                    {
-                        if (neighbourX >= 0 && neighbourX < obstacleMapWidth && neighbourY >= 0 && neighbourY < obstacleMapHeight) 
-                        {
-                            if (!visitedMapNodes[neighbourX,neighbourY] && !obstacleMap[neighbourX,neighbourY]) 
-                            {
-                                visitedMapNodes[neighbourX,neighbourY] = true;
-                                visitedNodeQueue.Enqueue(new Vector2Int(neighbourX,neighbourY));
-                                accessibleTileCount ++;
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-        int targetAccessibleTileCount = (int)(_freeTiles.Count - currentObstacleCount);
-        return targetAccessibleTileCount == accessibleTileCount;
-    }*/
+    public int IdFromPosition(int x, int y)
+	{
+        return x + y * _width;
+	}
 }

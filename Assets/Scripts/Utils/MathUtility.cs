@@ -42,6 +42,11 @@ public struct Vector2Int : IVectorInt, ISerializable
 		return new Vector3(X, Y, 0);
 	}
 
+    public bool IsZero()
+    {
+        return X == 0 && Y == 0;
+    }
+
 	public bool Equals (Vector2Int obj)
 	{
 		return X == obj.X && Y == obj.Y;
