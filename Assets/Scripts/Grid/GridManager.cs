@@ -1,4 +1,4 @@
-﻿using UnityEngine;
+﻿﻿using UnityEngine;
 
 using System;
 using System.Linq;
@@ -182,6 +182,10 @@ public class GridManager : SingletonBehavior<GridManager>
 
 		// select a random starting cell
         GridCell currentCell = GetFirstFreeCell();
+		// mark starting cell as visited
+		currentCell.Occupant = new CorridorBlock();
+
+        _freeCells--;
 
         // mark walls and rooms as already visited
         for (int x = 0; x < _width; ++x)
@@ -191,9 +195,6 @@ public class GridManager : SingletonBehavior<GridManager>
                 visited[x, y] = _grid[x, y].Occupant != null ? _grid[x, y].Occupant.Walls : EDirection.All;
             }
         }
-
-        // mark starting cell as visited
-        currentCell.Occupant = new CorridorBlock();
 
         if(_useDebugVisualization)
             currentCell.Renderer.SetColor(Color.magenta);
@@ -238,12 +239,14 @@ public class GridManager : SingletonBehavior<GridManager>
                 Vector2Int dirVector = currentCell.Coords - randomNeighbourCoords;
                 currentCell.BreakWall(DirectionFromVector(dirVector * -1));
 
-                // change the current cell to be the new random picked one and break the wall in direction from the previous one
-                currentCell = _grid[randomNeighbourCoords.X, randomNeighbourCoords.Y];
+                visited[currentCell.Coords.X, currentCell.Coords.Y] = currentCell.Occupant.Walls;
+
+				// change the current cell to be the new random picked one and break the wall in direction from the previous one
+				currentCell = _grid[randomNeighbourCoords.X, randomNeighbourCoords.Y];
                 currentCell.Occupant = new CorridorBlock();
 				currentCell.BreakWall(DirectionFromVector(dirVector));
 
-                visited[randomNeighbourCoords.X, randomNeighbourCoords.Y] = currentCell.Occupant.Walls;
+				visited[currentCell.Coords.X, currentCell.Coords.Y] = currentCell.Occupant.Walls;
 				cellStack.Push(currentCell);
 
 				if (_useDebugVisualization)
