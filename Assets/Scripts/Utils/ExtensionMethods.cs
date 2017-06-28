@@ -23,11 +23,19 @@ public static class ExtensionMethods
         }
     }
 
-	public static Dictionary<TKey, TValue> Shuffle<TKey, TValue>(
-	  this Dictionary<TKey, TValue> source)
+	public static void Shuffle<TKey, TValue>(this Dictionary<TKey, TValue> source)
 	{
-		Random r = new Random();
-		return source.OrderBy(x => r.Next())
-		   .ToDictionary(item => item.Key, item => item.Value);
+        KeyValuePair<TKey, TValue>[] keyValuePairs = source.ToArray();
+		Random random = new Random();
+
+		for (int i = keyValuePairs.Length - 1; i >= 0; i--)
+		{
+			int j = RandomUtility.Range(0, i);
+			KeyValuePair<TKey, TValue> temp = keyValuePairs[i];
+			keyValuePairs[i] = keyValuePairs[j];
+			keyValuePairs[j] = temp;
+		}
+
+        source = keyValuePairs.ToDictionary(k => k.Key, k => k.Value);
 	}
 }

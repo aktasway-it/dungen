@@ -269,9 +269,9 @@ public class GridManager : SingletonBehavior<GridManager>
             {
                 Vector2Int roomCoords = PositionFromId(roomBlockPair.Key);
 
-                if ((roomCoords.X % 2 == 0 && roomCoords.Y % 2 == 0) || (roomCoords.X % 2 != 0 && roomCoords.Y % 2 != 0))
+                if ((roomCoords.X % 2 == 0 && roomCoords.Y % 2 == 0) || (roomCoords.Y % 2 != 0 && roomCoords.Y % 2 != 0))
                     continue;
-                
+
                 Vector2Int dirVector = VectorFromDirection(roomBlockPair.Value.Walls);
                 EDirection wallDirection = DirectionFromVector(dirVector);
 
@@ -286,7 +286,13 @@ public class GridManager : SingletonBehavior<GridManager>
                 _grid[adjacentTilePosition.X, adjacentTilePosition.Y].BreakWall(GetOppositeVector(wallDirection));
                 _grid[roomCoords.X, roomCoords.Y].BreakWall(wallDirection);
 
-                room.Value.AddDoor();
+				room.Value.AddDoor();
+
+				Room adjacentRoom = GetRoomAtPosition(adjacentTilePosition);
+
+                if (adjacentRoom != null)
+                    adjacentRoom.AddDoor();
+
                 doorsCreated++;
 
                 if (doorsCreated == doorsToCreate)
@@ -307,6 +313,18 @@ public class GridManager : SingletonBehavior<GridManager>
         }
 
         return true;
+    }
+
+    private Room GetRoomAtPosition(Vector2Int position)
+    {
+        foreach(KeyValuePair<int, Room> roomPair in _rooms)
+        {
+            if ((position.X >= roomPair.Value.Origin.X && position.X < roomPair.Value.Size.X) &&
+               (position.Y >= roomPair.Value.Origin.Y && position.Y < roomPair.Value.Size.Y))
+                return roomPair.Value;
+        }
+
+        return null;
     }
 
     private EDirection GetOppositeVector(EDirection direction)

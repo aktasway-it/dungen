@@ -3,15 +3,17 @@ using System.Collections.Generic;
 
 public class Room
 {
-    public int DoorCount { get; private set; }
-	private readonly Vector2Int _topLeftCorner;
-	private readonly Vector2Int _size;
+    public int ID { get; private set; }
+    public Vector2Int Origin { get; private set; }
+    public Vector2Int Size { get; private set; }
     private Dictionary<int, RoomBlock> _blocks;
+	public int DoorCount { get; private set; }
 
-	public Room(int id, Vector2Int topLeftCorner, Vector2Int size) 
+    public Room(int id, Vector2Int origin, Vector2Int size) 
     {
-		_topLeftCorner = topLeftCorner;
-		_size = size;
+        ID = id;
+		Origin = origin;
+		Size = size;
         _blocks = new Dictionary<int, RoomBlock>();
 	}
 
@@ -30,15 +32,15 @@ public class Room
 	{
         Dictionary<int, RoomBlock> bounds = new Dictionary<int, RoomBlock>();
 
-		for (int x = _topLeftCorner.X; x <= _topLeftCorner.X + _size.X; ++x)
+		for (int x = Origin.X; x <= Origin.X + Size.X; ++x)
 		{
-			for (int y = _topLeftCorner.Y; y <= _topLeftCorner.Y + _size.Y; ++y)
+			for (int y = Origin.Y; y <= Origin.Y + Size.Y; ++y)
 			{
-				bool isLeftEdge = x - _topLeftCorner.X == 0;
-                bool isRightEdge = x - (_topLeftCorner.X + _size.X) == 0;
+				bool isLeftEdge = x - Origin.X == 0;
+                bool isRightEdge = x - (Origin.X + Size.X) == 0;
 
-                bool isTopEdge = y - (_topLeftCorner.Y + _size.Y) == 0;
-				bool isBottomEdge = y - _topLeftCorner.Y == 0;
+                bool isTopEdge = y - (Origin.Y + Size.Y) == 0;
+				bool isBottomEdge = y - Origin.Y == 0;
 
                 if(!isLeftEdge && !isRightEdge && !isTopEdge && !isBottomEdge)
 					continue;
