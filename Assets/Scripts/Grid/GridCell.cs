@@ -3,7 +3,6 @@ using System.Collections.Generic;
 
 public class GridCell
 {
-    public EDirection Walls { get; protected set; }
     public GridCellRenderer Renderer { get; set; }
     public DungeonBlock Occupant { get; set; }
     public Vector2Int Coords { get; protected set; }
@@ -11,28 +10,21 @@ public class GridCell
     public GridCell(int x, int y)
     {
         Coords = new Vector2Int(x, y);
-        Walls = EDirection.All;
     }
 
     public void SetWalls(EDirection newWalls)
     {
-        if (newWalls == Walls)
-			return;
+        Occupant.SetWalls(newWalls);
 
-        Walls = newWalls;
 		if (Renderer != null)
-			Renderer.SetWalls(Walls);
+            Renderer.SetWalls(Occupant.Walls);
     }
 
     public void BreakWall(EDirection direction)
     {
-        var newWalls = Walls &~ direction;
+        Occupant.BreakWall(direction);
 
-        if (newWalls == Walls)
-            return;
-        
-        Walls &= ~direction;
 		if (Renderer != null)
-            Renderer.SetWalls(Walls);
+            Renderer.SetWalls(Occupant.Walls);
     }
 }
