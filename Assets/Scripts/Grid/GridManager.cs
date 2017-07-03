@@ -75,7 +75,7 @@ public class GridManager : SingletonBehavior<GridManager>
 		
 		RandomUtility.Create(_seed);
         GenerateGrid();
-        GenerateRooms();
+        yield return Job.Create(GenerateRooms(), false).StartAsRoutine();
         yield return Job.Create(GenerateCorridors(), false).StartAsRoutine();
 		ConnectRooms();
 	}
@@ -94,7 +94,7 @@ public class GridManager : SingletonBehavior<GridManager>
             for (int y = 0; y < _width; ++y)
             {
                 int cellId = IdFromPosition(x, y);
-                GridCell cell = new GridCell(cellId, x, y);
+                GridCell cell = new GridCell(cellId, ECellType.Empty, x, y);
 				_grid[x, y] = cell;
 
                 if(_useDebugVisualization)
@@ -111,7 +111,7 @@ public class GridManager : SingletonBehavior<GridManager>
         }
 	}
 
-    private void GenerateRooms()
+    private IEnumerator GenerateRooms()
     {
         _rooms = new Dictionary<int, Room>();
 
@@ -138,38 +138,34 @@ public class GridManager : SingletonBehavior<GridManager>
                         if (!IsValidCoordinate(x, y))
                             continue;
 
-                        RoomBlock roomBlock = new RoomBlock();
+                        Dictionary<EDirection, EEdgeType> walls = new Dictionary<EDirection, EEdgeType>();
 
-						EDirection walls = EDirection.None;
                         bool isLeftEdge = x - cell.Coords.X == 0;
                         bool isRightEdge = x - (cell.Coords.X + roomSize.X) == 0;
 
 						bool isTopEdge = y - (cell.Coords.Y + roomSize.Y) == 0;
                         bool isBottomEdge = y - cell.Coords.Y == 0;
 
-                        if (isLeftEdge)
-                            walls |= EDirection.West;
-                        else if (isRightEdge)
-                            walls |= EDirection.East;
+						walls.Add(EDirection.West, isLeftEdge ? EEdgeType.Wall : EEdgeType.None);
+                        walls.Add(EDirection.East, isRightEdge ? EEdgeType.Wall : EEdgeType.None);
+                        walls.Add(EDirection.North, isTopEdge ? EEdgeType.Wall : EEdgeType.None);
+                        walls.Add(EDirection.South, isBottomEdge ? EEdgeType.Wall : EEdgeType.None);
 
-                        if (isTopEdge)
-                            walls |= EDirection.North;
-                        else if (isBottomEdge)
-                            walls |= EDirection.South;
-
-                        _grid[x, y].Occupant = roomBlock;
-						_grid[x, y].SetWalls(walls);
+                        _grid[x, y].Type = ECellType.Room;
+						_grid[x, y].SetEdges(walls);
 
                         if(_useDebugVisualization)
-                            _grid[x, y].Renderer.SetColor(Color.cyan);
+                            _grid[x, y].Renderer.SetColor(Color.white * 0.3f);
 
-                        room.AddBlock(IdFromPosition(x, y), roomBlock);
+                        room.AddBlock(IdFromPosition(x, y), _grid[x, y]);
                         _freeCells--;
 					}
 				}
 
 				roomId++;
                 _rooms.Add(roomId, room);
+
+                yield return null;
 			}
 
 			attempts++;
@@ -178,12 +174,12 @@ public class GridManager : SingletonBehavior<GridManager>
 
     private IEnumerator GenerateCorridors()
     {
-        EDirection[,] visited = new EDirection[_width, _height];
+        bool[,] visited = new bool[_width, _height];
 
 		// select a random starting cell
         GridCell currentCell = GetFirstFreeCell();
 		// mark starting cell as visited
-		currentCell.Occupant = new CorridorBlock();
+        currentCell.Type = ECellType.Corridor;
 
         _freeCells--;
 
@@ -192,7 +188,7 @@ public class GridManager : SingletonBehavior<GridManager>
         {
             for (int y = 0; y < _width; ++y)
             {
-                visited[x, y] = _grid[x, y].Occupant != null ? _grid[x, y].Occupant.Walls : EDirection.All;
+                visited[x, y] = _grid[x, y].Type != ECellType.Empty;
             }
         }
 
@@ -202,7 +198,7 @@ public class GridManager : SingletonBehavior<GridManager>
 		Stack<GridCell> cellStack = new Stack<GridCell>();
         cellStack.Push(currentCell);
 
-        Color debugColor = Color.grey;
+        Color debugColor = Color.white * 0.8f;
 
 		List<Vector2Int> neighbors = new List<Vector2Int>();
 
@@ -217,7 +213,7 @@ public class GridManager : SingletonBehavior<GridManager>
                     if (((x - currentCell.Coords.X) != 0 && (y - currentCell.Coords.Y) != 0) || (x - currentCell.Coords.X) == 0 && (y - currentCell.Coords.Y) == 0)
                         continue;
                     
-                    if (IsValidCoordinate(x, y) && visited[x, y] == EDirection.All)
+                    if (IsValidCoordinate(x, y) && !visited[x, y])
                         neighbors.Add(new Vector2Int(x, y));
                 }
             }
@@ -229,7 +225,7 @@ public class GridManager : SingletonBehavior<GridManager>
                 else
                 {
                     currentCell = GetFirstFreeCell();
-                    currentCell.Occupant = new CorridorBlock();
+                    currentCell.Type = ECellType.Corridor;
                 }
             }
             else
@@ -237,16 +233,15 @@ public class GridManager : SingletonBehavior<GridManager>
                 // pick a random neighbour cell and break the wall in that direction
                 var randomNeighbourCoords = neighbors.GetRandomElement();
                 Vector2Int dirVector = currentCell.Coords - randomNeighbourCoords;
-                currentCell.BreakWall(DirectionFromVector(dirVector * -1));
-
-                visited[currentCell.Coords.X, currentCell.Coords.Y] = currentCell.Occupant.Walls;
+                currentCell.SetEdge(DirectionFromVector(dirVector * -1), EEdgeType.None);
 
 				// change the current cell to be the new random picked one and break the wall in direction from the previous one
 				currentCell = _grid[randomNeighbourCoords.X, randomNeighbourCoords.Y];
-                currentCell.Occupant = new CorridorBlock();
-				currentCell.BreakWall(DirectionFromVector(dirVector));
+                currentCell.Type = ECellType.Corridor;
+                currentCell.SetEdge(DirectionFromVector(dirVector), EEdgeType.None);
 
-				visited[currentCell.Coords.X, currentCell.Coords.Y] = currentCell.Occupant.Walls;
+                visited[currentCell.Coords.X, currentCell.Coords.Y] = true;
+
 				cellStack.Push(currentCell);
 
 				if (_useDebugVisualization)
@@ -268,14 +263,14 @@ public class GridManager : SingletonBehavior<GridManager>
             int doorsCreated = 0;
             int doorsToCreate = RandomUtility.Range(1, _maxDoorsPerRoom + 1) - room.Value.DoorCount;
 
-            foreach(KeyValuePair<int, RoomBlock> roomBlockPair in boundary)
+            foreach(KeyValuePair<int, GridCell> roomBlockPair in boundary)
             {
                 Vector2Int roomCoords = PositionFromId(roomBlockPair.Key);
 
                 if ((roomCoords.X % 2 == 0 && roomCoords.Y % 2 == 0) || (roomCoords.Y % 2 != 0 && roomCoords.Y % 2 != 0))
                     continue;
 
-                Vector2Int dirVector = VectorFromDirection(roomBlockPair.Value.Walls);
+                Vector2Int dirVector = VectorFromDirection(roomBlockPair.Value.GetWalls());
                 EDirection wallDirection = DirectionFromVector(dirVector);
 
                 if (dirVector.IsZero())
@@ -286,8 +281,8 @@ public class GridManager : SingletonBehavior<GridManager>
                 if (!IsValidCoordinate(adjacentTilePosition))
                     continue;
 
-                _grid[adjacentTilePosition.X, adjacentTilePosition.Y].BreakWall(GetOppositeVector(wallDirection));
-                _grid[roomCoords.X, roomCoords.Y].BreakWall(wallDirection);
+                _grid[adjacentTilePosition.X, adjacentTilePosition.Y].SetEdge(GetOppositeDirection(wallDirection), EEdgeType.Door);
+                _grid[roomCoords.X, roomCoords.Y].SetEdge(wallDirection, EEdgeType.Door);
 
 				room.Value.AddDoor();
 
@@ -310,7 +305,7 @@ public class GridManager : SingletonBehavior<GridManager>
         {
             for (int y = topLeftCoords.Y; y < topLeftCoords.Y + height; ++y)
             {
-                if (!IsValidCoordinate(x, y) || _grid[x, y].Occupant != null)
+                if (!IsValidCoordinate(x, y) || _grid[x, y].Type != ECellType.Empty)
                     return false;
             }
         }
@@ -330,7 +325,7 @@ public class GridManager : SingletonBehavior<GridManager>
         return null;
     }
 
-    private EDirection GetOppositeVector(EDirection direction)
+    private EDirection GetOppositeDirection(EDirection direction)
     {
 		if ((direction & EDirection.East) == EDirection.East)
 			return EDirection.West;
@@ -391,7 +386,7 @@ public class GridManager : SingletonBehavior<GridManager>
                 break;
             else if (onlyEmpty)
             {
-                if (cell.Occupant == null)
+                if (cell.Type == ECellType.Empty)
                     break;
                 else
                     cell = null;
@@ -405,7 +400,7 @@ public class GridManager : SingletonBehavior<GridManager>
     {
         foreach(GridCell cell in _grid)
         {
-            if (cell.Occupant == null)
+            if (cell.Type == ECellType.Empty)
                 return cell;
         }
 

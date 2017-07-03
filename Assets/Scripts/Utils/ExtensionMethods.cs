@@ -26,7 +26,6 @@ public static class ExtensionMethods
 	public static void Shuffle<TKey, TValue>(this Dictionary<TKey, TValue> source)
 	{
         KeyValuePair<TKey, TValue>[] keyValuePairs = source.ToArray();
-		Random random = new Random();
 
 		for (int i = keyValuePairs.Length - 1; i >= 0; i--)
 		{

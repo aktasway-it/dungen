@@ -8,7 +8,7 @@ public class GridCellRenderer : MonoBehaviour
 	private struct WallRenderer
 	{
 		public EDirection direction;
-		public GameObject gameObject;
+        public SpriteRenderer spriteRenderer;
 	}
 
     private SpriteRenderer Renderer
@@ -32,11 +32,12 @@ public class GridCellRenderer : MonoBehaviour
         Renderer.color = color;
     }
 
-    public void SetWalls(EDirection directions)
+    public void SetWalls(Dictionary<EDirection, EEdgeType> walls)
     {
         for (int i = 0; i < _walls.Length; ++i)
         {
-            _walls[i].gameObject.SetActive((directions & (_walls[i].direction)) == _walls[i].direction);
+            _walls[i].spriteRenderer.gameObject.SetActive(walls[_walls[i].direction] != EEdgeType.None);
+            _walls[i].spriteRenderer.color = walls[_walls[i].direction] == EEdgeType.Wall ? Color.black : Color.yellow;
         }
     }
 }

@@ -1,8 +1,15 @@
-﻿public enum EDungeonBlockType
+﻿public enum ECellType
 {
-    Wall,
+    Empty,
     Corridor,
     Room
+}
+
+public enum EEdgeType
+{
+    None,
+    Wall,
+    Door
 }
 
 [System.Flags]

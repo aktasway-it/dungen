@@ -6,7 +6,7 @@ public class Room
     public int ID { get; private set; }
     public Vector2Int Origin { get; private set; }
     public Vector2Int Size { get; private set; }
-    private Dictionary<int, RoomBlock> _blocks;
+    private Dictionary<int, GridCell> _gridCells;
 	public int DoorCount { get; private set; }
 
     public Room(int id, Vector2Int origin, Vector2Int size) 
@@ -14,13 +14,13 @@ public class Room
         ID = id;
 		Origin = origin;
 		Size = size;
-        _blocks = new Dictionary<int, RoomBlock>();
+        _gridCells = new Dictionary<int, GridCell>();
 	}
 
-    public void AddBlock(int cellId, RoomBlock block)
+    public void AddBlock(int cellId, GridCell block)
     {
-        if(!_blocks.ContainsKey(cellId))
-            _blocks.Add(cellId, block);
+        if(!_gridCells.ContainsKey(cellId))
+            _gridCells.Add(cellId, block);
     }
 
     public void AddDoor()
@@ -28,9 +28,9 @@ public class Room
         DoorCount++;
     }
 
-    public Dictionary<int, RoomBlock> GetBounds()
+    public Dictionary<int, GridCell> GetBounds()
 	{
-        Dictionary<int, RoomBlock> bounds = new Dictionary<int, RoomBlock>();
+        Dictionary<int, GridCell> bounds = new Dictionary<int, GridCell>();
 
 		for (int x = Origin.X; x <= Origin.X + Size.X; ++x)
 		{
@@ -46,7 +46,7 @@ public class Room
 					continue;
 
                 int roomBlockId = GridManager.Instance.IdFromPosition(x, y);
-                bounds.Add(roomBlockId, _blocks[roomBlockId]);
+                bounds.Add(roomBlockId, _gridCells[roomBlockId]);
 			}
 		}
 
