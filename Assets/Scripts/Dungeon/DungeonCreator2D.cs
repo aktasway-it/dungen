@@ -6,7 +6,10 @@ using Debug = UnityEngine.Debug;
 
 public class DungeonCreator2D : MonoBehaviour 
 {
-	[SerializeField]
+    [SerializeField]
+    private Camera _camera;
+
+    [SerializeField]
 	[Range(0.1f, 5.0f)]
 	private float _tileSize = 1.0f;
 
@@ -23,10 +26,10 @@ public class DungeonCreator2D : MonoBehaviour
     private DungeonConfiguration _configuration = null;
 
 	[SerializeField]
-	private GridCellRenderer _cellVisualPrefab = null;
+	private DungeonCellRenderer _cellVisualPrefab = null;
 
     private Dungeon _dungeon = null;
-	private GridCellRenderer[,] _gridRenderer = null;
+	private DungeonCellRenderer[,] _gridRenderer = null;
 
     private void Start()
     {
@@ -50,11 +53,13 @@ public class DungeonCreator2D : MonoBehaviour
 
     private IEnumerator Draw()
 	{
+        _camera.orthographicSize = Mathf.Max(_configuration.Width, _configuration.Height) / 2;
+
         Vector3 initialPos = new Vector3(-_configuration.Width * _tileSize * 0.5f, -_configuration.Height * _tileSize * 0.5f, 0);
         initialPos.x -= _spacing * (_configuration.Width - 1) * 0.5f;
         initialPos.y -= _spacing * (_configuration.Height - 1) * 0.5f;
 
-        _gridRenderer = new GridCellRenderer[_configuration.Width, _configuration.Height];
+        _gridRenderer = new DungeonCellRenderer[_configuration.Width, _configuration.Height];
 
         for (int x = 0; x < _configuration.Width; ++x)
 		{
@@ -63,7 +68,7 @@ public class DungeonCreator2D : MonoBehaviour
                 int cellId = _dungeon.Grid[x, y].ID;
 
 				Vector3 spawnPos = new Vector3(x * (_tileSize + _spacing) + _tileSize * 0.5f, y * (_tileSize + _spacing) + _tileSize * 0.5f, 0);
-				GridCellRenderer cellRenderer = Instantiate<GridCellRenderer>(_cellVisualPrefab, initialPos + spawnPos, Quaternion.identity);
+				DungeonCellRenderer cellRenderer = Instantiate<DungeonCellRenderer>(_cellVisualPrefab, initialPos + spawnPos, Quaternion.identity);
 				cellRenderer.transform.localScale = Vector3.one * _tileSize;
 				cellRenderer.name = string.Format("Tile_{0}x{1} ({2})", x, y, cellId);
 				cellRenderer.transform.parent = transform;

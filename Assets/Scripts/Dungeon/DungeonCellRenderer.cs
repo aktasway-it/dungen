@@ -2,7 +2,7 @@
 using System.Collections.Generic;
 using UnityEngine;
 
-public class GridCellRenderer : MonoBehaviour 
+public class DungeonCellRenderer : MonoBehaviour 
 {
 	[System.Serializable]
 	private struct WallRenderer
