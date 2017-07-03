@@ -6,7 +6,7 @@ public class Room
     public int ID { get; private set; }
     public Vector2Int Origin { get; private set; }
     public Vector2Int Size { get; private set; }
-    private Dictionary<int, GridCell> _gridCells;
+    private List<DungeonCell> _gridCells;
 	public int DoorCount { get; private set; }
 
     public Room(int id, Vector2Int origin, Vector2Int size) 
@@ -14,13 +14,13 @@ public class Room
         ID = id;
 		Origin = origin;
 		Size = size;
-        _gridCells = new Dictionary<int, GridCell>();
+        _gridCells = new List<DungeonCell>();
 	}
 
-    public void AddBlock(int cellId, GridCell block)
+    public void AddCell(DungeonCell cell)
     {
-        if(!_gridCells.ContainsKey(cellId))
-            _gridCells.Add(cellId, block);
+        if(!_gridCells.Contains(cell))
+            _gridCells.Add(cell);
     }
 
     public void AddDoor()
@@ -28,27 +28,23 @@ public class Room
         DoorCount++;
     }
 
-    public Dictionary<int, GridCell> GetBounds()
+    public List<DungeonCell> GetBounds()
 	{
-        Dictionary<int, GridCell> bounds = new Dictionary<int, GridCell>();
+        List<DungeonCell> bounds = new List<DungeonCell>();
 
-		for (int x = Origin.X; x <= Origin.X + Size.X; ++x)
-		{
-			for (int y = Origin.Y; y <= Origin.Y + Size.Y; ++y)
-			{
-				bool isLeftEdge = x - Origin.X == 0;
-                bool isRightEdge = x - (Origin.X + Size.X) == 0;
+        for (int i = 0; i < _gridCells.Count; ++i)
+        {
+            bool isLeftEdge = _gridCells[i].Coords.X - Origin.X == 0;
+			bool isRightEdge = _gridCells[i].Coords.X - (Origin.X + Size.X) == 0;
 
-                bool isTopEdge = y - (Origin.Y + Size.Y) == 0;
-				bool isBottomEdge = y - Origin.Y == 0;
+            bool isTopEdge = _gridCells[i].Coords.Y - (Origin.Y + Size.Y) == 0;
+            bool isBottomEdge = _gridCells[i].Coords.Y - Origin.Y == 0;
 
-                if(!isLeftEdge && !isRightEdge && !isTopEdge && !isBottomEdge)
-					continue;
+			if (!isLeftEdge && !isRightEdge && !isTopEdge && !isBottomEdge)
+				continue;
 
-                int roomBlockId = GridManager.Instance.IdFromPosition(x, y);
-                bounds.Add(roomBlockId, _gridCells[roomBlockId]);
-			}
-		}
+            bounds.Add(_gridCells[i]);
+        }
 
 		return bounds;
 	}
