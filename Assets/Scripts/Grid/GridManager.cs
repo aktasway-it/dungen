@@ -1,9 +1,11 @@
 ﻿﻿using UnityEngine;
 
 using System;
-using System.Linq;
+using System.Diagnostics;
 using System.Collections;
 using System.Collections.Generic;
+
+using Debug = UnityEngine.Debug;
 
 public class GridManager : SingletonBehavior<GridManager> 
 {
@@ -47,6 +49,9 @@ public class GridManager : SingletonBehavior<GridManager>
 	[SerializeField]
 	private int _maxAttempts;
 
+    [SerializeField]
+    private bool _removeDeadEnds;
+
 	[SerializeField]
 	private int _seed;
 
@@ -56,11 +61,15 @@ public class GridManager : SingletonBehavior<GridManager>
     [SerializeField]
     private bool _useDebugVisualization;
 
+	[SerializeField]
+	private bool _showAnimatedGeneration;
+
     [SerializeField]
     private GridCellRenderer _cellVisualPrefab = null;
 
     private int _freeCells;
     private GridCell[,] _grid = null;
+	private GridCell _startTile = null;
     private Dictionary<int, Room> _rooms;
 
     private void Start()
@@ -68,16 +77,32 @@ public class GridManager : SingletonBehavior<GridManager>
         Job.Create(Create());
     }
 
+    private void Update()
+    {
+        if (Input.GetKeyDown(KeyCode.R))
+            UnityEngine.SceneManagement.SceneManager.LoadScene("Main");
+    }
+
     public IEnumerator Create () 
 	{
+        Stopwatch sw = new Stopwatch();
+
+        sw.Start();
 		if(_useRandomSeed)
 			_seed = (int) (DateTime.Now.Ticks % 100000);
 		
 		RandomUtility.Create(_seed);
         GenerateGrid();
         yield return Job.Create(GenerateRooms(), false).StartAsRoutine();
+
         yield return Job.Create(GenerateCorridors(), false).StartAsRoutine();
 		ConnectRooms();
+
+        if(_removeDeadEnds)
+            yield return Job.Create(RemoveDeadEnds(), false).StartAsRoutine();
+
+        sw.Stop();;
+        Debug.Log("Generation time: " + sw.ElapsedMilliseconds + "ms");
 	}
 
 	private void GenerateGrid()
@@ -165,19 +190,23 @@ public class GridManager : SingletonBehavior<GridManager>
 				roomId++;
                 _rooms.Add(roomId, room);
 
-                yield return null;
+                if (_showAnimatedGeneration)
+                    yield return null;
 			}
 
 			attempts++;
         }
-    }
+	}
 
-    private IEnumerator GenerateCorridors()
+	private IEnumerator GenerateCorridors()
     {
         bool[,] visited = new bool[_width, _height];
 
 		// select a random starting cell
         GridCell currentCell = GetFirstFreeCell();
+
+        _startTile = currentCell;
+
 		// mark starting cell as visited
         currentCell.Type = ECellType.Corridor;
 
@@ -221,7 +250,7 @@ public class GridManager : SingletonBehavior<GridManager>
             if(neighbors.Count == 0)
             {
                 if(cellStack.Count > 0)
-                    currentCell = cellStack.Pop();
+					currentCell = cellStack.Pop();
                 else
                 {
                     currentCell = GetFirstFreeCell();
@@ -248,8 +277,57 @@ public class GridManager : SingletonBehavior<GridManager>
 					currentCell.Renderer.SetColor(debugColor);
 
                 _freeCells--;
-				yield return null;
+
+                if (_showAnimatedGeneration)
+				    yield return null;
 			}
+        }
+	}
+
+    private IEnumerator RemoveDeadEnds()
+    {
+		List<GridCell> deadEnds = new List<GridCell>();
+
+		for (int x = 0; x < _width; ++x)
+		{
+            for (int y = 0; y < _width; ++y)
+            {
+                var currentCell = _grid[x, y];
+                if (currentCell.GetWallCount() == 3 && !currentCell.ID.Equals(_startTile.ID))
+                {
+                    if(_useDebugVisualization)
+                        currentCell.Renderer.SetColor(Color.red);
+                    
+                    deadEnds.Add(currentCell);
+                }
+            }
+        }
+
+        foreach(GridCell deadEnd in deadEnds)
+        {
+            var currentCell = deadEnd;
+            int attempts = 0;
+            while(currentCell.GetWallCount() == 3)
+            {
+                if (_useDebugVisualization)
+				    currentCell.Renderer.SetColor(Color.black);
+
+                currentCell.Type = ECellType.Empty;
+                var openEdge = currentCell.GetOpenEdges();
+
+                var nextCellCoords = currentCell.Coords + VectorFromDirection(openEdge);
+
+                currentCell = _grid[nextCellCoords.X, nextCellCoords.Y];
+                currentCell.SetEdge(GetOppositeDirection(openEdge), EEdgeType.Wall);
+
+                attempts++;
+
+                if (attempts > 100)
+                    break;
+
+                if (_showAnimatedGeneration)
+                    yield return null;
+            }
         }
 	}
 
