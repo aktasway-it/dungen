@@ -28,7 +28,11 @@ public class DungeonCreator2D : MonoBehaviour
 	[SerializeField]
 	private DungeonCellRenderer _cellVisualPrefab = null;
 
+    [SerializeField]
+    private PlayerArrowController _playerControllerPrefab = null;
+
     private Dungeon _dungeon = null;
+    private PlayerArrowController _playerController = null;
 	private DungeonCellRenderer[,] _gridRenderer = null;
 
     private void Start()
@@ -45,7 +49,13 @@ public class DungeonCreator2D : MonoBehaviour
             Job.Create(Draw());
     }
 
-	private void Update()
+    private void OnDestroy()
+    {
+        if(_playerController != null)
+            _playerController.onPlayerMoved -= OnPlayerMoved;
+    }
+
+    private void Update()
 	{
 		if (Input.GetKeyDown(KeyCode.R))
 			UnityEngine.SceneManagement.SceneManager.LoadScene("Main");
@@ -100,5 +110,19 @@ public class DungeonCreator2D : MonoBehaviour
 					yield return null;
 			}
 		}
+
+        _playerController = Instantiate(_playerControllerPrefab, _gridRenderer[_dungeon.Start.Coords.X, _dungeon.Start.Coords.Y].transform.position, Quaternion.identity);
+        _playerController.CurrentCell = _dungeon.Start;
+        _playerController.onPlayerMoved += OnPlayerMoved;
 	}
+
+    void OnPlayerMoved(EDirection direction)
+    {
+        if (!_playerController.CurrentCell.EdgeTypeCheck(direction, EEdgeType.Wall))
+        {
+            var newCellPosition = _playerController.CurrentCell.Coords + DungeonUtils.VectorFromDirection(direction);
+            _playerController.CurrentCell = _dungeon.Grid[newCellPosition.X, newCellPosition.Y];
+            _playerController.transform.position = _gridRenderer[newCellPosition.X, newCellPosition.Y].transform.position;
+        }
+    }
 }
