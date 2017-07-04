@@ -4,8 +4,9 @@ using System.Collections.Generic;
 public class Dungeon
 {
     public DungeonCell[,] Grid { get; private set; }
-    public DungeonCell Start { get; private set; }
-    public Dictionary<int, Room> Rooms { get; private set; }
+	public DungeonCell Start { get; private set; }
+	public DungeonCell Exit { get; private set; }
+	public List<Room> Rooms { get; private set; }
 
     public int Width { get { return _configuration.Width; } }
 	public int Height { get { return _configuration.Height; } }
@@ -28,8 +29,10 @@ public class Dungeon
         GenerateCorridors();
 		ConnectRooms();
 
-        if (_configuration.RemoveDeadEnds)
+        if (_configuration.RemoveDeadEnds && Rooms.Count > 0)
             RemoveDeadEnds();
+
+        CreateExit();
 	}
 
     private void GenerateGrid()
@@ -50,7 +53,7 @@ public class Dungeon
 
     private void GenerateRooms()
     {
-        Rooms = new Dictionary<int, Room>();
+        Rooms = new List<Room>();
 
         int attempts = 0;
         int roomId = 0;
@@ -59,7 +62,7 @@ public class Dungeon
 
         while(attempts < _configuration.MaxAttempts)
         {
-            DungeonCell cell = GetRandomCell();
+            DungeonCell cell = GetRandomCell(ECellType.Empty);
             Vector2Int roomSize = new Vector2Int(RandomUtility.Range(_configuration.RoomSize.Min, _configuration.RoomSize.Max + 1), RandomUtility.Range(_configuration.RoomSize.Min, _configuration.RoomSize.Max + 1));
 
             Vector2Int roomDistanceVector = new Vector2Int(minRoomDistance, minRoomDistance);
@@ -97,7 +100,7 @@ public class Dungeon
 				}
 
 				roomId++;
-                Rooms.Add(roomId, room);
+                Rooms.Add(room);
 			}
 
 			attempts++;
@@ -109,7 +112,7 @@ public class Dungeon
         bool[,] visited = new bool[_configuration.Width, _configuration.Height];
 
 		// select a random starting cell
-        DungeonCell currentCell = GetFirstFreeCell();
+        DungeonCell currentCell = GetRandomCell(ECellType.Empty);
 
         Start = currentCell;
 
@@ -178,53 +181,15 @@ public class Dungeon
         }
 	}
 
-    private void RemoveDeadEnds()
-    {
-		List<DungeonCell> deadEnds = new List<DungeonCell>();
-
-        for (int x = 0; x < _configuration.Width; ++x)
-		{
-            for (int y = 0; y < _configuration.Height; ++y)
-            {
-                var currentCell = Grid[x, y];
-                if (currentCell.GetWallCount() == 3 && !currentCell.ID.Equals(Start.ID))
-                {
-                    deadEnds.Add(currentCell);
-                }
-            }
-        }
-
-        foreach(DungeonCell deadEnd in deadEnds)
-        {
-            var currentCell = deadEnd;
-            int attempts = 0;
-            while(currentCell.GetWallCount() == 3)
-            {
-                currentCell.Type = ECellType.Empty;
-                var openEdge = currentCell.GetOpenEdges();
-
-                var nextCellCoords = currentCell.Coords + DungeonUtils.VectorFromDirection(openEdge);
-
-                currentCell = Grid[nextCellCoords.X, nextCellCoords.Y];
-                currentCell.SetEdge(DungeonUtils.GetOppositeDirection(openEdge), EEdgeType.Wall);
-
-                attempts++;
-
-                if (attempts > 100)
-                    break;
-            }
-        }
-	}
-
     private void ConnectRooms()
     {
-        foreach(KeyValuePair<int, Room> room in Rooms)
+        foreach(Room room in Rooms)
         {
-            var boundary = room.Value.GetBounds();
+            var boundary = room.GetBounds();
             boundary.Shuffle();
 
             int doorsCreated = 0;
-            int doorsToCreate = RandomUtility.Range(1, _configuration.MaxDoorsPerRoom + 1) - room.Value.DoorCount;
+            int doorsToCreate = RandomUtility.Range(1, _configuration.MaxDoorsPerRoom + 1) - room.DoorCount;
 
             foreach(DungeonCell boundCell in boundary)
             {
@@ -247,7 +212,7 @@ public class Dungeon
                 Grid[adjacentTilePosition.X, adjacentTilePosition.Y].SetEdge(DungeonUtils.GetOppositeDirection(wallDirection), EEdgeType.Door);
                 Grid[roomCoords.X, roomCoords.Y].SetEdge(wallDirection, EEdgeType.Door);
 
-				room.Value.AddDoor();
+				room.AddDoor();
 
 				Room adjacentRoom = GetRoomAtPosition(adjacentTilePosition);
 
@@ -259,6 +224,58 @@ public class Dungeon
                 if (doorsCreated == doorsToCreate)
                     break;
             }
+        }
+    }
+
+	private void RemoveDeadEnds()
+	{
+		List<DungeonCell> deadEnds = new List<DungeonCell>();
+
+		for (int x = 0; x < _configuration.Width; ++x)
+		{
+			for (int y = 0; y < _configuration.Height; ++y)
+			{
+				var currentCell = Grid[x, y];
+				if (currentCell.GetWallCount() == 3 && !currentCell.ID.Equals(Start.ID))
+				{
+					deadEnds.Add(currentCell);
+				}
+			}
+		}
+
+		foreach (DungeonCell deadEnd in deadEnds)
+		{
+			var currentCell = deadEnd;
+			int attempts = 0;
+			while (currentCell.GetWallCount() == 3)
+			{
+				currentCell.Type = ECellType.Empty;
+				var openEdge = currentCell.GetOpenEdges();
+
+				var nextCellCoords = currentCell.Coords + DungeonUtils.VectorFromDirection(openEdge);
+
+				currentCell = Grid[nextCellCoords.X, nextCellCoords.Y];
+				currentCell.SetEdge(DungeonUtils.GetOppositeDirection(openEdge), EEdgeType.Wall);
+
+				attempts++;
+
+				if (attempts > 100)
+					break;
+			}
+		}
+	}
+
+    private void CreateExit()
+    {
+        bool isExitInRoom = _configuration.RemoveDeadEnds || RandomUtility.Range(0.0f, 1.0f) > 0.5f;
+        if(isExitInRoom)
+        {
+            var room = Rooms.GetRandomElement();
+            Exit = room.GridCells.GetRandomElement();
+		}
+        else
+        {
+            Exit = GetRandomCell(ECellType.Corridor);
         }
     }
 
@@ -278,36 +295,39 @@ public class Dungeon
 
     private Room GetRoomAtPosition(Vector2Int position)
     {
-        foreach(KeyValuePair<int, Room> roomPair in Rooms)
+        foreach(Room room in Rooms)
         {
-            if ((position.X >= roomPair.Value.Origin.X && position.X < roomPair.Value.Size.X) &&
-               (position.Y >= roomPair.Value.Origin.Y && position.Y < roomPair.Value.Size.Y))
-                return roomPair.Value;
+            if ((position.X >= room.Origin.X && position.X < room.Size.X) &&
+               (position.Y >= room.Origin.Y && position.Y < room.Size.Y))
+                return room;
         }
 
         return null;
     }
 
-    public DungeonCell GetRandomCell(bool onlyEmpty = false)
+    public DungeonCell GetRandomCell(ECellType cellType)
     {
-        DungeonCell cell = null;
-        while (cell == null)
-		{
-            cell = Grid[RandomUtility.Range(0, _configuration.Width), RandomUtility.Range(0, _configuration.Height)];
+        return GetRandomCell(Grid, cellType);
+    }
 
-            if (!onlyEmpty)
-                break;
-            else if (onlyEmpty)
+    public DungeonCell GetRandomCell(DungeonCell[,] area, ECellType cellType)
+	{
+		DungeonCell cell = null;
+		while (cell == null)
+		{
+            cell = area[RandomUtility.Range(0, area.GetLength(0)), RandomUtility.Range(0, area.GetLength(1))];
+
+            if (cell.Type != cellType)
             {
-                if (cell.Type == ECellType.Empty)
-                    break;
-                else
-                    cell = null;
+                cell = null;
+                continue;
             }
+
+            break;
 		}
 
-        return cell;
-    }
+		return cell;
+	}
 
     public DungeonCell GetFirstFreeCell()
     {

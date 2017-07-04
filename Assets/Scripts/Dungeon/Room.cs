@@ -6,7 +6,7 @@ public class Room
     public int ID { get; private set; }
     public Vector2Int Origin { get; private set; }
     public Vector2Int Size { get; private set; }
-    private List<DungeonCell> _gridCells;
+    public List<DungeonCell> GridCells { get; private set; }
 	public int DoorCount { get; private set; }
 
     public Room(int id, Vector2Int origin, Vector2Int size) 
@@ -14,13 +14,13 @@ public class Room
         ID = id;
 		Origin = origin;
 		Size = size;
-        _gridCells = new List<DungeonCell>();
+        GridCells = new List<DungeonCell>();
 	}
 
     public void AddCell(DungeonCell cell)
     {
-        if(!_gridCells.Contains(cell))
-            _gridCells.Add(cell);
+        if(!GridCells.Contains(cell))
+            GridCells.Add(cell);
     }
 
     public void AddDoor()
@@ -32,18 +32,18 @@ public class Room
 	{
         List<DungeonCell> bounds = new List<DungeonCell>();
 
-        for (int i = 0; i < _gridCells.Count; ++i)
+        for (int i = 0; i < GridCells.Count; ++i)
         {
-            bool isLeftEdge = _gridCells[i].Coords.X - Origin.X == 0;
-			bool isRightEdge = _gridCells[i].Coords.X - (Origin.X + Size.X) == 0;
+            bool isLeftEdge = GridCells[i].Coords.X - Origin.X == 0;
+			bool isRightEdge = GridCells[i].Coords.X - (Origin.X + Size.X) == 0;
 
-            bool isTopEdge = _gridCells[i].Coords.Y - (Origin.Y + Size.Y) == 0;
-            bool isBottomEdge = _gridCells[i].Coords.Y - Origin.Y == 0;
+            bool isTopEdge = GridCells[i].Coords.Y - (Origin.Y + Size.Y) == 0;
+            bool isBottomEdge = GridCells[i].Coords.Y - Origin.Y == 0;
 
 			if (!isLeftEdge && !isRightEdge && !isTopEdge && !isBottomEdge)
 				continue;
 
-            bounds.Add(_gridCells[i]);
+            bounds.Add(GridCells[i]);
         }
 
 		return bounds;

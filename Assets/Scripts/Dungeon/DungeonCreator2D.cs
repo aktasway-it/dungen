@@ -81,11 +81,7 @@ public class DungeonCreator2D : MonoBehaviour
 						_gridRenderer[x, y].SetColor(Color.black);
 						break;
 					case ECellType.Corridor:
-                        if (cellId.Equals(_dungeon.Start.ID))
-							_gridRenderer[x, y].SetColor(Color.magenta);
-						else
-							_gridRenderer[x, y].SetColor(Color.white * 0.7f);
-
+						_gridRenderer[x, y].SetColor(Color.white * 0.7f);
                         _gridRenderer[x, y].SetWalls(_dungeon.Grid[x, y].Edges);
 						break;
 					case ECellType.Room:
@@ -94,6 +90,12 @@ public class DungeonCreator2D : MonoBehaviour
 						break;
 				}
 
+				if (cellId.Equals(_dungeon.Start.ID))
+					_gridRenderer[x, y].SetColor(Color.magenta);
+
+                if (cellId.Equals(_dungeon.Exit.ID))
+					_gridRenderer[x, y].SetColor(Color.green);
+                
 				if (_showAnimatedGeneration)
 					yield return null;
 			}
