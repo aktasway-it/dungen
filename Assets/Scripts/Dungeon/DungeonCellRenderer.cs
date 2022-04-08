@@ -1,43 +1,45 @@
-﻿using System.Collections;
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using UnityEngine;
 
-public class DungeonCellRenderer : MonoBehaviour 
+namespace Dungeon
 {
-	[System.Serializable]
-	private struct WallRenderer
-	{
-		public EDirection direction;
-        public SpriteRenderer spriteRenderer;
-	}
-
-    private SpriteRenderer Renderer
+    public class DungeonCellRenderer : MonoBehaviour 
     {
-        get
+        [System.Serializable]
+        private struct WallRenderer
         {
-            if (_renderer == null)
-                _renderer = GetComponent<SpriteRenderer>();
-
-            return _renderer;
+            public EDirection direction;
+            public SpriteRenderer spriteRenderer;
         }
-    }
 
-	[SerializeField]
-	private WallRenderer[] _walls = null;
-
-    private SpriteRenderer _renderer = null;
-
-    public void SetColor(Color color)
-    {
-        Renderer.color = color;
-    }
-
-    public void SetWalls(Dictionary<EDirection, EEdgeType> walls)
-    {
-        for (int i = 0; i < _walls.Length; ++i)
+        private SpriteRenderer Renderer
         {
-            _walls[i].spriteRenderer.gameObject.SetActive(walls[_walls[i].direction] != EEdgeType.None);
-            _walls[i].spriteRenderer.color = walls[_walls[i].direction] == EEdgeType.Wall ? Color.black : Color.yellow;
+            get
+            {
+                if (_renderer == null)
+                    _renderer = GetComponent<SpriteRenderer>();
+
+                return _renderer;
+            }
+        }
+
+        [SerializeField]
+        private WallRenderer[] _walls = null;
+
+        private SpriteRenderer _renderer = null;
+
+        public void SetColor(Color color)
+        {
+            Renderer.color = color;
+        }
+
+        public void SetWalls(Dictionary<EDirection, EEdgeType> walls)
+        {
+            for (int i = 0; i < _walls.Length; ++i)
+            {
+                _walls[i].spriteRenderer.gameObject.SetActive(walls[_walls[i].direction] != EEdgeType.None);
+                _walls[i].spriteRenderer.color = walls[_walls[i].direction] == EEdgeType.Wall ? Color.black : Color.yellow;
+            }
         }
     }
 }

@@ -1,23 +1,27 @@
 ﻿using System;
+using Dungeon;
 using UnityEngine;
 
-public class PlayerArrowController : MonoBehaviour 
+namespace Modules.Player
 {
-    public event Action<EDirection> onPlayerMoved;
-    public DungeonCell CurrentCell { get; set; }
-
-    private void Update()
+    public class PlayerArrowController : MonoBehaviour 
     {
-        if (Input.GetKeyDown(KeyCode.UpArrow) && onPlayerMoved != null)
-            onPlayerMoved(EDirection.North);
+        public event Action<EDirection> onPlayerMoved;
+        public DungeonCell CurrentCell { get; set; }
 
-        if (Input.GetKeyDown(KeyCode.DownArrow) && onPlayerMoved != null)
-            onPlayerMoved(EDirection.South);
+        private void Update()
+        {
+            if (Input.GetKeyDown(KeyCode.UpArrow) && onPlayerMoved != null)
+                onPlayerMoved(EDirection.North);
 
-        if (Input.GetKeyDown(KeyCode.LeftArrow) && onPlayerMoved != null)
-            onPlayerMoved(EDirection.West);
+            if (Input.GetKeyDown(KeyCode.DownArrow) && onPlayerMoved != null)
+                onPlayerMoved(EDirection.South);
 
-        if (Input.GetKeyDown(KeyCode.RightArrow) && onPlayerMoved != null)
-            onPlayerMoved(EDirection.East);
+            if (Input.GetKeyDown(KeyCode.LeftArrow) && onPlayerMoved != null)
+                onPlayerMoved(EDirection.West);
+
+            if (Input.GetKeyDown(KeyCode.RightArrow) && onPlayerMoved != null)
+                onPlayerMoved(EDirection.East);
+        }
     }
 }

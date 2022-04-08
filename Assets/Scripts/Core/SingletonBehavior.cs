@@ -1,30 +1,33 @@
 ﻿using UnityEngine;
 
-public class SingletonBehavior<T> : MonoBehaviour where T : MonoBehaviour
+namespace Core
 {
-	private static T _instance;
-
-	public static T Instance
+	public class SingletonBehavior<T> : MonoBehaviour where T : MonoBehaviour
 	{
-		get
-		{	
-			return _instance;
-		}
-	}
+		private static T _instance;
 
-	protected void Awake()
-	{
-		if (_instance != null)
+		public static T Instance
 		{
-			Destroy(gameObject);
-			return;
+			get
+			{	
+				return _instance;
+			}
 		}
 
-		_instance = GetComponent<T>();
-		Init();
-	}
+		protected void Awake()
+		{
+			if (_instance != null)
+			{
+				Destroy(gameObject);
+				return;
+			}
 
-	protected virtual void Init()
-	{
+			_instance = GetComponent<T>();
+			Init();
+		}
+
+		protected virtual void Init()
+		{
+		}
 	}
 }

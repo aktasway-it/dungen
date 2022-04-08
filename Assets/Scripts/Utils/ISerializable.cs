@@ -1,8 +1,8 @@
-﻿using UnityEngine;
-using System.Collections;
-
-public interface ISerializable 
+﻿namespace Utils
 {
-	JSONObject Serialize();
-	void Deserialize(JSONObject saveData);
+	public interface ISerializable 
+	{
+		JSONObject Serialize();
+		void Deserialize(JSONObject saveData);
+	}
 }
